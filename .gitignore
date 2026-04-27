@@ -1,4 +1,9 @@
+tlsserver
+tlsserver5
+tlsserver6
 tlsclient
 tlsclient5
+vpnserver
+vpnclient
 *.key
 *-key.pem

@@ -1,0 +1,20 @@
+*************************************************
+* tlsserver.c tls server program
+* tlsserver5.c tls server program with VPN Client Authentication
+* cert_server server certificate folder 
+************************************************
+
+---------------------------
+To compile the compile: 
+---------------------------
+$ make 
+
+
+---------------------------
+To run the server:
+---------------------------
+$ ./tlsserver
+
+
+Note: The server's certificate is ./cert_server/server-cert.pem, 
+and the common name of the certificate is 'vpnlabserver.com'. 
