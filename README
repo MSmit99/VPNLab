@@ -1,0 +1,135 @@
+# miniVPN — SEED Labs VPN Project
+
+A TLS/SSL-based Virtual Private Network implemented in C for Linux, built as part of the [SEED Labs VPN Lab](https://seedsecuritylabs.org/Labs_20.04/Networking/VPN/) (CS 364 Computer Security).
+
+---
+
+## Overview
+
+This project implements **miniVPN**, a functional TLS/SSL VPN tunnel between a client and a gateway server, giving users on an external network secure access to a private internal network. It covers the full VPN stack: tunneling via TUN/TAP, encrypted transport over TLS, PKI-based server authentication, password-based client authentication, and multi-client support.
+
+### Network Topology
+
+```
+[Host U / VPN Client] <--NAT Network--> [VPN Server / Gateway] <--Internal Network--> [Host V]
+      10.0.2.x                                  10.0.2.4                                192.168.60.101
+  (tun0: 192.168.53.5)                    (tun0: 192.168.53.1)                        (gw: 192.168.60.1)
+```
+
+> The client's NAT IP is assigned dynamically. The server IP `10.0.2.4` is hardcoded in `vpnclient.c` and should be updated to match your environment.
+
+---
+
+## Tasks Implemented
+
+| Task | Description |
+|------|-------------|
+| **Task 1** | VM setup — three-VM topology with NAT and Internal Network adapters |
+| **Task 2** | UDP-based VPN tunnel using TUN/TAP (`vpnclient` / `vpnserver`) |
+| **Task 3** | TLS encryption of the tunnel (replaces UDP with TCP+TLS) |
+| **Task 4** | VPN server authentication via X.509 certificates and PKI |
+| **Task 5** | VPN client authentication via username/password against `/etc/shadow` |
+| **Task 6** | Multi-client support using `fork()` + pipes for IPC |
+
+---
+
+## Repository Structure
+
+```
+├── Client VPN VM/
+│   ├── vpn/
+│   │   ├── vpnclient.c          # Task 2: UDP tunnel client
+│   │   ├── setupclient.sh       # Configures tun0 and routing on client
+│   │   └── Makefile
+│   └── tls/
+│       ├── tlsclient.c          # Task 3–4: TLS tunnel client w/ server auth
+│       ├── tlsclient5.c         # Task 5: TLS client w/ username/password auth
+│       ├── ca_client/           # CA certificates for server verification
+│       ├── client_setup.sh      # Configures tun0 and routing after TLS connect
+│       ├── add_wrong_host.sh    # Simulates a failed hostname verification (MITM demo)
+│       ├── update_symlink.sh    # Rebuilds OpenSSL CA cert symlink (hardcoded path — update before use)
+│       └── Makefile
+│
+├── Server VPN VM/
+│   ├── vpn/
+│   │   ├── vpnserver.c          # Task 2: UDP tunnel server
+│   │   ├── setup_server.sh      # Configures tun0, IP forwarding, and routing
+│   │   └── Makefile
+│   └── tls/
+│       ├── tlsserver.c          # Task 3–4: TLS tunnel server
+│       ├── tlsserver5.c         # Task 5: TLS server w/ shadow file auth
+│       ├── tlsserver6.c         # Task 6: Multi-client server using fork + pipes
+│       ├── cert_server/         # Server TLS certificate, key, CA cert, and CSR
+│       ├── server_setup.sh      # Configures tun0 and internal network interface
+│       ├── fix_firewall.sh      # Sets iptables FORWARD policy to ACCEPT
+│       ├── regen_cert.sh        # Regenerates CA and server certificate
+│       ├── copy_cert.sh         # SCPs CA cert to client VM (hardcoded dest: 10.0.2.15 — update as needed)
+│       └── Makefile
+│
+└── Host V/
+    └── setup_hostv.sh           # Adds route so Host V can reply through VPN gateway
+```
+
+---
+
+## Quick Start
+
+### 1. Build
+
+On each VM, run `make` inside the relevant `vpn/` or `tls/` directory.
+
+### 2. Run (TLS version — Tasks 3–5)
+
+**Server VM** (from `Server VPN VM/tls/`):
+```bash
+sudo ./tlsserver5        # starts TLS server on port 4433
+# in another terminal:
+bash server_setup.sh     # configures tun0 and IP forwarding
+```
+
+**Client VM** (from `Client VPN VM/tls/`):
+```bash
+# First, add the server hostname to /etc/hosts (required before tlsclient5 can resolve it)
+echo "10.0.2.4    vpnlabserver.com" | sudo tee -a /etc/hosts
+
+sudo ./tlsclient5 vpnlabserver.com 4433   # connects, prompts for credentials
+# in another terminal:
+bash client_setup.sh     # configures tun0 and routes 192.168.60.0/24 via tunnel
+```
+
+**Host V:**
+```bash
+bash setup_hostv.sh      # routes reply traffic back through the VPN gateway
+```
+
+### 2b. Run (Multi-client — Task 6)
+
+Replace `tlsserver5` with `tlsserver6` on the server. It accepts multiple simultaneous client connections, spawning a child process per client and routing packets via pipes.
+
+```bash
+sudo ./tlsserver6
+```
+
+### 3. Test
+```bash
+# From Host U:
+ping 192.168.60.101
+telnet 192.168.60.101
+```
+
+---
+
+## Key Security Features
+
+- **Encryption & Integrity** — TLS 1.2 over TCP replaces the plaintext UDP channel
+- **Server Authentication** — Client verifies the server's X.509 certificate CN against the hostname provided at the command line; mismatches abort the handshake
+- **Client Authentication** — Server reads credentials over the TLS channel and validates against `/etc/shadow` using `crypt()`
+- **Multi-Client** — `tlsserver6` forks a child process per client; packets arriving at `tun0` are routed to the correct child via a pipe
+
+---
+
+## References
+
+- [SEED Labs VPN Lab](https://seedsecuritylabs.org/Labs_20.04/Networking/VPN/)
+- [VPN.pdf Lab Description](https://seedsecuritylabs.org/Labs_20.04/Files/VPN/VPN.pdf)
+- Du, W. *Computer & Internet Security: A Hands-on Approach*, 2nd/3rd Ed
