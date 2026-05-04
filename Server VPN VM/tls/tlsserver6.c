@@ -31,6 +31,7 @@ int createTunDevice() {
     struct ifreq ifr;
     memset(&ifr, 0, sizeof(ifr));
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
+    strncpy(ifr.ifr_name, "tun0", IFNAMSIZ);
     tunfd = open("/dev/net/tun", O_RDWR);
     ioctl(tunfd, TUNSETIFF, &ifr);
     return tunfd;
@@ -225,9 +226,9 @@ int main() {
                 int i;
                 for (i = 0; i < num_clients; i++) {
                     if (clients[i].tun_ip == 0) {
-                        clients[i].tun_ip = src_ip;
+                        clients[i].tun_ip = dest_ip;
                         printf("Parent: Learned client %d TUN IP: %s\n", i,
-                               inet_ntoa(*(struct in_addr*)&src_ip));
+                               inet_ntoa(*(struct in_addr*)&dest_ip));
                         break;
                     }
                 }
