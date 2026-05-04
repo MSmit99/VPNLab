@@ -71,10 +71,12 @@ int setupTCPClient(const char* hostname, int port) {
 }
 
 int main(int argc, char *argv[]) {
-    char *hostname = "vpnlabserver.com";
-    int port = 4433;
-    if (argc > 1) hostname = argv[1];
-    if (argc > 2) port = atoi(argv[2]);
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <hostname> <port>\n", argv[0]);
+        exit(1);
+    }
+    char *hostname = argv[1];
+    int port = atoi(argv[2]);
 
     // TLS setup
     SSL *ssl = setupTLSClient(hostname);
